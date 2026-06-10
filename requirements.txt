@@ -1,6 +1,8 @@
 requests
 streamlit
 pandas
+altair
 feedparser
 openai
 mcp
+python-dotenv

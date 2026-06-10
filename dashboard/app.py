@@ -8,7 +8,10 @@ import altair as alt
 import streamlit as st
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from openai import OpenAI
+from dotenv import load_dotenv
 
+load_dotenv()
 import config
 from config import MARKETS, CACHE_TTL_SECONDS, openai_enabled, use_mcp
 from pipeline import run_pipeline, AGENTS
@@ -328,3 +331,69 @@ if run:
     st.markdown("---")
     st.markdown('<p class="muted">Demo only — not financial advice. Data via MCP: CoinGecko · CoinDesk · '
                 'alternative.me · Yahoo Finance.</p>', unsafe_allow_html=True)
+
+# ---------------------------------------------------------------------------
+# AI Chat Assistant
+# ---------------------------------------------------------------------------
+
+st.markdown("---")
+st.markdown("## 🤖 AI Trading Assistant")
+
+st.write(
+    "Ask questions about the trading decision, risk plan, indicators, or how the agents made the recommendation."
+)
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+
+prompt = st.chat_input("Ask about this asset, signals, risk, or market outlook...")
+
+if prompt:
+    st.session_state.messages.append(
+        {"role": "user", "content": prompt}
+    )
+
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    api_key = os.getenv("OPENAI_API_KEY")
+
+    if not api_key:
+        response_text = (
+            "OPENAI_API_KEY not found. Add your key to a .env file, then restart Streamlit."
+        )
+    else:
+        try:
+            client = OpenAI(api_key=api_key)
+
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are an AI trading assistant for a hackathon demo. "
+                            "Explain technical indicators, sentiment, risk management, "
+                            "and Buy/Sell/Hold decisions in simple language. "
+                            "Always remind the user this is educational and not financial advice."
+                        ),
+                    },
+                    *st.session_state.messages,
+                ],
+            )
+
+            response_text = response.choices[0].message.content
+
+        except Exception as e:
+            response_text = f"Error: {e}"
+
+    with st.chat_message("assistant"):
+        st.markdown(response_text)
+
+    st.session_state.messages.append(
+        {"role": "assistant", "content": response_text}
+    )
